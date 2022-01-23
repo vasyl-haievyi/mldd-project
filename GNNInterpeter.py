@@ -28,13 +28,14 @@ class GNNInterpreter:
         if self.log:
             print(msg)
 
-    def _get_original_pred(self):
+    def get_original_pred(self, return_tensor=False):
         nodes, edges = self.featurizer.process_mol(self.mol)
         x = torch.FloatTensor(nodes)
         edge_index = torch.LongTensor(edges)
         batch = torch.zeros(x.shape[0], dtype=torch.int64)
+        output =  self.model(x, edge_index, batch)
 
-        return self.model(x, edge_index, batch).item()
+        return output if return_tensor else output.item()
 
     # throws
     def _getReplacedMol(self, atom, replacement, replace_atom_alg):
@@ -86,7 +87,7 @@ class GNNInterpreter:
             model_preds.append(self._get_replaced_data_prediction(atom, organic_atom, replace_atom_alg))
 
         model_preds = np.array(model_preds)
-        original_pred = self._get_original_pred()
+        original_pred = self.get_original_pred()
 
         #calculate weight
         if calculate_atom_weight_alg == 'absolute':
@@ -170,7 +171,7 @@ class GNNInterpreter:
         return SVG(fig.to_str()), fig
 
     def grad_cam(self):
-        final_conv_acts, final_conv_grads = self.model.final_conv_acts, self.model.final_conv_grads
+        final_conv_acts, final_conv_grads = model.final_conv_acts, model.final_conv_grads
         node_heat_map = []
         alphas = torch.mean(final_conv_grads, axis=0)
         for n in range(final_conv_acts.shape[0]): # nth node
@@ -178,7 +179,17 @@ class GNNInterpreter:
             node_heat_map.append(node_heat)
         return np.array(node_heat_map)
 
-    def get_importance_map_svg(self, mol, method='substitution', replace_atoms_with='all', replace_atom_alg='number', calculate_atom_weight_alg='signed'):
+    def saliency_map(self, backward_func):
+        backward_func()
+        input_grads = self.model.input.grad
+        node_saliency_map = []
+        for n in range(input_grads.shape[0]): # nth node
+            node_grads = input_grads[n,:]
+            node_saliency = torch.norm(F.relu(node_grads)).item()
+            node_saliency_map.append(node_saliency)
+        return np.array(node_saliency_map)
+
+    def get_importance_map_svg(self, mol, method='substitution', replace_atoms_with='all', replace_atom_alg='number', calculate_atom_weight_alg='signed', backward_func=None):
         if type(mol) is Chem.Mol:
             self.mol = Chem.Mol(mol)
         else:
@@ -187,9 +198,9 @@ class GNNInterpreter:
             atom_weights = self._calc_atoms_weight(replace_atoms_with, replace_atom_alg, calculate_atom_weight_alg)
         elif method == 'gradcam':
             atom_weights = self.grad_cam()
+        elif method == 'saliency':
+            atom_weights = self.saliency_map(backward_func)
         
-        importance_map = self._generate_importance_map(atom_weights, positive_only=calculate_atom_weight_alg == 'absolute' or method == 'gradcam')
+        importance_map = self._generate_importance_map(atom_weights, positive_only=calculate_atom_weight_alg == 'absolute' or method != 'substitution')
 
         return importance_map
-
-        
