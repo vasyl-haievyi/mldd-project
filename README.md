@@ -9,6 +9,30 @@ This repository contains implementation of GNN intepretability method basing on 
 The main module containing source code. Contains GNNInterpreter class that should be used to get results.
 
 ### Public methods
+
+```
+init(self, model, featurizer, log)
+```
+
+#### Parameters
+
+- model 
+
+`torch.nn.Module`. GNN network that will be explained. Network should expose following properties and methods:
+    
+    - forward(x, edge_index, batch) : typical forward method for GNN
+    - final_conv_acts, final_conv_grads : information about activations and gradients of the last convolution layer. Should contain information about the most recent model invocation.
+    - input : remembered last input of the model
+
+- featurizer
+
+Object. Object that is usually used to process dataframe and obtain graph data. For usage with the class it has to implement method `process_mol(mol)` that takes `rdkit.Chem.Mol` object and return node info and edge info as type of numpy.ndarray's.
+
+- log
+
+Bool. When the value is True additional information is logged to console. Otherwise no additional information is outputted.
+
+---
  
  ```
  get_original_pred(self, return_tensor=False)
@@ -75,11 +99,13 @@ svg, fig = interpreter.get_importance_map_svg(mol, 'substitution', 'all', 'numbe
 display(svg)
 ```
 
-Please refer to [Usage exmaples](#usage-examples)
+Please refer to [Usage exmaples](#usage-examples) for more details.
+
+---
 
 ## Usage examples
 
-Files `ESOL.jpynb` and `BACE.jpyng` contain example experiments for esol regression and bace classification tasks respectively.
+Files [`ESOL.jpynb`](./ESOL.ipynb) and [`BACE.jpyng`](./BACE.ipynb) contain example experiments for esol regression and bace classification tasks respectively.
 
 Examine the notebooks for usage details.
 
