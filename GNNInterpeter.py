@@ -108,7 +108,7 @@ class GNNInterpreter:
         return np.array(atom_weights, dtype=np.float)
 
     def _get_atom_colors(self, atom_weights):
-        positive_idx = atom_weights > 0
+        positive_idx = atom_weights >= 0
         
         if positive_idx.any():
             atom_weights[positive_idx] = MinMaxScaler(feature_range=(0,1)).fit_transform(atom_weights[positive_idx].reshape(-1, 1)).reshape(-1, )
@@ -170,8 +170,9 @@ class GNNInterpreter:
 
         return SVG(fig.to_str()), fig
 
-    def grad_cam(self):
-        final_conv_acts, final_conv_grads = model.final_conv_acts, model.final_conv_grads
+    def grad_cam(self, backward_func):
+        backward_func()
+        final_conv_acts, final_conv_grads = self.model.final_conv_acts, self.model.final_conv_grads
         node_heat_map = []
         alphas = torch.mean(final_conv_grads, axis=0)
         for n in range(final_conv_acts.shape[0]): # nth node
@@ -197,7 +198,7 @@ class GNNInterpreter:
         if method == 'substitution':
             atom_weights = self._calc_atoms_weight(replace_atoms_with, replace_atom_alg, calculate_atom_weight_alg)
         elif method == 'gradcam':
-            atom_weights = self.grad_cam()
+            atom_weights = self.grad_cam(backward_func)
         elif method == 'saliency':
             atom_weights = self.saliency_map(backward_func)
         
