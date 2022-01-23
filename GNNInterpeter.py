@@ -23,6 +23,30 @@ class GNNInterpreter:
         self.featurizer = featurizer
         self.log = log
         self.organic_atoms = [Atom(symbol) for symbol in  ['Br', 'C', 'Cl', 'F', 'H', 'I', 'N', 'O', 'P', 'S']]
+
+    def get_importance_map_svg(self, 
+                               mol, # rdkit.Chem.Mol or smiles str
+                               method='substitution', # others: gradcam, saliency
+                               replace_atoms_with='all', # others: zero or atom label
+                               replace_atom_alg='number', # others: atom
+                               calculate_atom_weight_alg='signed', # others: absolute
+                               backward_func=None # func performing backward pass on the model
+                               ):
+        
+        if type(mol) is Chem.Mol:
+            self.mol = Chem.Mol(mol)
+        else:
+            self.mol = Chem.MolFromSmiles(mol)
+        if method == 'substitution':
+            atom_weights = self._calc_atoms_weight(replace_atoms_with, replace_atom_alg, calculate_atom_weight_alg)
+        elif method == 'gradcam':
+            atom_weights = self.grad_cam(backward_func)
+        elif method == 'saliency':
+            atom_weights = self.saliency_map(backward_func)
+        
+        importance_map = self._generate_importance_map(atom_weights, positive_only=calculate_atom_weight_alg == 'absolute' or method != 'substitution')
+
+        return importance_map
     
     def _log(self, msg):
         if self.log:
@@ -93,7 +117,7 @@ class GNNInterpreter:
         if calculate_atom_weight_alg == 'absolute':
             prepared_diff = np.abs(original_pred - model_preds)
         elif calculate_atom_weight_alg == 'signed':
-            prepared_diff = model_preds - original_pred
+            prepared_diff = original_pred - model_preds
 
         not_nans = prepared_diff[~np.isnan(prepared_diff)]
         atom_weight = not_nans.mean() if len(not_nans) != 0 else np.nan
@@ -136,11 +160,11 @@ class GNNInterpreter:
             'highlightAtomColors': atom_colors
         }
 
-        # for idx, atom in enumerate(self.mol.GetAtoms()):
-        #     if ~np.isnan(atom_weights[idx]):
-        #         atom.SetProp('atomNote', f'{atom_weights[idx]:2.3}')
-        #     else:
-        #         atom.SetProp('atomNote', 'N/D')
+        for idx, atom in enumerate(self.mol.GetAtoms()):
+            if ~np.isnan(atom_weights[idx]):
+                atom.SetProp('atomNote', f'{atom_weights[idx]:2.3}')
+            else:
+                atom.SetProp('atomNote', 'N/D')
 
         #draw molecule
         d = rdMolDraw2D.MolDraw2DSVG(500, 500) # or MolDraw2DCairo to get PNGs
@@ -189,19 +213,3 @@ class GNNInterpreter:
             node_saliency = torch.norm(F.relu(node_grads)).item()
             node_saliency_map.append(node_saliency)
         return np.array(node_saliency_map)
-
-    def get_importance_map_svg(self, mol, method='substitution', replace_atoms_with='all', replace_atom_alg='number', calculate_atom_weight_alg='signed', backward_func=None):
-        if type(mol) is Chem.Mol:
-            self.mol = Chem.Mol(mol)
-        else:
-            self.mol = Chem.MolFromSmiles(mol)
-        if method == 'substitution':
-            atom_weights = self._calc_atoms_weight(replace_atoms_with, replace_atom_alg, calculate_atom_weight_alg)
-        elif method == 'gradcam':
-            atom_weights = self.grad_cam(backward_func)
-        elif method == 'saliency':
-            atom_weights = self.saliency_map(backward_func)
-        
-        importance_map = self._generate_importance_map(atom_weights, positive_only=calculate_atom_weight_alg == 'absolute' or method != 'substitution')
-
-        return importance_map
