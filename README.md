@@ -26,7 +26,7 @@ init(self, model, featurizer, log)
 
 - featurizer
 
-Object. Object that is usually used to process dataframe and obtain graph data. For usage with the class it has to implement method `process_mol(mol)` that takes `rdkit.Chem.Mol` object and return node info and edge info as type of numpy.ndarray's.
+Object. Object that is usually used to process dataframe and obtain graph data. For usage with the class it has to implement method `process_mol(mol)` that takes `rdkit.Chem.Mol` object and return node info and edge info as tuple of numpy.ndarray's.
 
 - log
 
